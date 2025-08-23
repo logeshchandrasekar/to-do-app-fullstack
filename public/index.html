@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do : Task checklist </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- NEW: SortableJS for Drag and Drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #f3f4f6; /* gray-100 */
+            --bg-secondary: #ffffff;
+            --text-primary: #1f2937; /* gray-800 */
+            --text-secondary: #4b5563; /* gray-600 */
+            --border-color: #e5e7eb; /* gray-200 */
+            --accent-color: #6d28d9; /* violet-700 */
+            --priority-high-bg: #fee2e2;
+            --priority-medium-bg: #ffedd5;
+            --priority-low-bg: #dcfce7;
+        }
+        html.dark {
+            --bg-primary: #111827; /* gray-900 */
+            --bg-secondary: #1f2937; /* gray-800 */
+            --text-primary: #f9fafb; /* gray-50 */
+            --text-secondary: #9ca3af; /* gray-400 */
+            --border-color: #374151; /* gray-700 */
+            --accent-color: #8b5cf6; /* violet-500 */
+            --priority-high-bg: #3f1a1a;
+            --priority-medium-bg: #432c13;
+            --priority-low-bg: #14321f;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-primary); color: var(--text-primary); }
+        .page { display: none; }
+        .page.active { display: flex; }
+        .toast { animation: slide-in 0.5s forwards, slide-out 0.5s 2.5s forwards; transform: translateX(100%); }
+        @keyframes slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes slide-out { from { transform: translateX(0); } to { transform: translateX(120%); } }
+        .modal-container { transition: opacity 0.3s ease; }
+        .modal-content { transition: transform 0.3s ease, opacity 0.3s ease; }
+        .modal-hidden { opacity: 0; pointer-events: none; }
+        .modal-hidden .modal-content { transform: scale(0.95); opacity: 0; }
+        .priority-High { background-color: var(--priority-high-bg); }
+        .priority-Medium { background-color: var(--priority-medium-bg); }
+        .priority-Low { background-color: var(--priority-low-bg); }
+        #accountDrawer { transition: transform 0.3s ease-in-out; transform: translateX(100%); }
+        #accountDrawer.open { transform: translateX(0); }
+        #drawerBackdrop { transition: opacity 0.3s ease-in-out; }
+        .filter-btn.active { background-color: var(--accent-color); color: white; }
+        /* Drag and Drop styles */
+        .task-item.sortable-ghost { opacity: 0.4; background-color: var(--accent-color); }
+        .task-item.sortable-chosen { cursor: grabbing; }
+        .task-item { cursor: grab; }
+        /* FIX: Dark mode dropdown visibility */
+        html.dark select {
+            color: var(--text-primary);
+            background-color: var(--bg-primary);
+        }
+    </style>
+</head>
+<body class="transition-colors duration-300">
+
+    <!-- Login & Register Pages -->
+    <div id="authContainer" class="page active min-h-screen items-center justify-center p-4">
+        <div class="w-full max-w-md mx-auto bg-[var(--bg-secondary)] rounded-2xl shadow-2xl p-8">
+            <div id="loginView">
+                <h2 class="text-3xl font-bold text-center text-[var(--text-primary)] mb-8">Welcome Back</h2>
+                <form id="loginForm">
+                    <div class="mb-4"><label for="loginEmail" class="block text-[var(--text-secondary)] font-medium mb-2">Email</label><input type="email" id="loginEmail" class="w-full px-4 py-2 border border-[var(--border-color)] rounded-lg bg-transparent focus:ring-2 focus:ring-[var(--accent-color)]" required></div>
+                    <div class="mb-6"><label for="loginPassword" class="block text-[var(--text-secondary)] font-medium mb-2">Password</label><input type="password" id="loginPassword" class="w-full px-4 py-2 border border-[var(--border-color)] rounded-lg bg-transparent focus:ring-2 focus:ring-[var(--accent-color)]" required></div>
+                    <button type="submit" class="w-full bg-[var(--accent-color)] text-white font-semibold py-3 rounded-lg shadow-md hover:opacity-90 transition">Login</button>
+                </form>
+                <p class="text-center text-[var(--text-secondary)] mt-6">No account? <a href="#" id="showRegister" class="font-semibold text-[var(--accent-color)] hover:underline">Sign up</a></p>
+            </div>
+            <div id="registerView" class="hidden">
+                <h2 class="text-3xl font-bold text-center text-[var(--text-primary)] mb-8">Create Account</h2>
+                <form id="registerForm">
+                    <div class="mb-4"><label for="registerEmail" class="block text-[var(--text-secondary)] font-medium mb-2">Email</label><input type="email" id="registerEmail" class="w-full px-4 py-2 border border-[var(--border-color)] rounded-lg bg-transparent focus:ring-2 focus:ring-[var(--accent-color)]" required></div>
+                    <div class="mb-6"><label for="registerPassword" class="block text-[var(--text-secondary)] font-medium mb-2">Password</label><input type="password" id="registerPassword" class="w-full px-4 py-2 border border-[var(--border-color)] rounded-lg bg-transparent focus:ring-2 focus:ring-[var(--accent-color)]" required></div>
+                    <button type="submit" class="w-full bg-[var(--accent-color)] text-white font-semibold py-3 rounded-lg shadow-md hover:opacity-90 transition">Register</button>
+                </form>
+                <p class="text-center text-[var(--text-secondary)] mt-6">Have an account? <a href="#" id="showLogin" class="font-semibold text-[var(--accent-color)] hover:underline">Log in</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Page -->
+    <div id="appPage" class="page w-full h-screen p-4 md:p-8">
+        <div class="w-full max-w-3xl mx-auto flex flex-col h-full">
+            <div class="bg-[var(--bg-secondary)] rounded-2xl shadow-lg p-6 md:p-8 flex flex-col flex-grow border border-[var(--border-color)]">
+                <header class="flex items-center justify-between mb-4 flex-shrink-0"><h1 class="text-3xl font-bold text-[var(--text-primary)]">My Tasks</h1><button id="accountBtn" class="p-2 rounded-full hover:bg-[var(--border-color)] transition"><svg class="h-6 w-6 text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button></header>
+                <div class="mb-4 relative flex-shrink-0"><input type="text" id="searchInput" placeholder="Search tasks..." class="w-full pl-10 pr-4 py-2 border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--accent-color)] bg-transparent"><svg class="w-5 h-5 text-[var(--text-secondary)] absolute left-3 top-1/2 transform -translate-y-1/2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg></div>
+                <div id="controls" class="flex flex-col sm:flex-row items-center justify-between mb-4 p-2 bg-[var(--bg-primary)] rounded-lg flex-shrink-0 border border-[var(--border-color)]">
+                    <div id="filterControls" class="flex items-center space-x-2 mb-2 sm:mb-0"><button data-status="all" class="filter-btn active px-3 py-1 rounded-md text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--border-color)] transition">All</button><button data-status="active" class="filter-btn px-3 py-1 rounded-md text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--border-color)] transition">Active</button><button data-status="completed" class="filter-btn px-3 py-1 rounded-md text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--border-color)] transition">Completed</button></div>
+                    <div id="sortControls" class="flex items-center"><label for="sortBy" class="text-sm font-medium text-[var(--text-secondary)] mr-2">Sort by:</label><select id="sortBy" class="bg-transparent border border-[var(--border-color)] rounded-md py-1 px-2 text-sm focus:ring-[var(--accent-color)] focus:border-[var(--accent-color)]"><option value="custom">My Order</option><option value="createdAt">Date Created</option><option value="priority">Priority</option><option value="deadline">Deadline</option></select></div>
+                </div>
+                <div id="taskList" class="space-y-3 flex-grow overflow-y-auto pr-2"></div>
+                <button id="addTaskBtn" class="w-full mt-4 border-2 border-dashed border-[var(--border-color)] text-[var(--text-secondary)] font-medium py-2 rounded-lg hover:bg-[var(--border-color)] hover:text-[var(--text-primary)] transition flex-shrink-0">+ Add Task</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Drawer -->
+    <div id="drawerBackdrop" class="fixed inset-0 bg-black bg-opacity-0 pointer-events-none z-40"></div>
+    <div id="accountDrawer" class="fixed top-0 right-0 h-full w-80 bg-[var(--bg-secondary)] shadow-2xl p-6 z-50 border-l border-[var(--border-color)]"><div class="flex items-center justify-between mb-8"><h2 class="text-2xl font-bold text-[var(--text-primary)]">Settings</h2><button id="closeDrawerBtn" class="p-2 rounded-full hover:bg-[var(--border-color)] transition"><svg class="h-6 w-6 text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button></div>
+        <div class="mb-8"><p class="text-[var(--text-secondary)] mb-1">Logged in as:</p><p id="userEmailDisplay" class="font-semibold text-[var(--text-primary)] break-words"></p></div>
+        <div class="mb-8"><p class="text-[var(--text-secondary)] mb-2">Theme</p><div class="flex items-center space-x-2"><button id="themeLightBtn" class="p-2 rounded-lg border-2 border-[var(--accent-color)]"><svg class="w-6 h-6 text-[var(--accent-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg></button><button id="themeDarkBtn" class="p-2 rounded-lg border-2 border-transparent"><svg class="w-6 h-6 text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg></button></div></div>
+        <button id="logoutBtn" class="w-full bg-red-500 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-red-600 transition">Logout</button>
+    </div>
+
+    <!-- Modals and Toast Container -->
+    <div id="taskModal" class="modal-container fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 modal-hidden">
+        <div class="modal-content bg-[var(--bg-secondary)] rounded-xl shadow-2xl p-8 w-full max-w-md border border-[var(--border-color)]">
+            <h2 id="modalTitle" class="text-2xl font-bold text-[var(--text-primary)] mb-6">Add New Task</h2>
+            <form id="taskForm">
+                <input type="hidden" id="taskId">
+                <!-- FIX: Added autocomplete="off" -->
+                <div class="mb-4"><label for="taskTitle" class="block text-[var(--text-secondary)] font-medium mb-2">Title</label><input type="text" id="taskTitle" class="w-full px-4 py-2 border border-[var(--border-color)] rounded-lg bg-transparent" autocomplete="off" required></div>
+                <div class="mb-4"><label for="taskPriority" class="block text-[var(--text-secondary)] font-medium mb-2">Priority</label><select id="taskPriority" class="w-full px-4 py-2 border border-[var(--border-color)] rounded-lg bg-transparent"><option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option></select></div>
+                <div class="mb-6"><label for="taskDeadline" class="block text-[var(--text-secondary)] font-medium mb-2">Deadline</label><input type="datetime-local" id="taskDeadline" class="w-full px-4 py-2 border border-[var(--border-color)] rounded-lg bg-transparent"></div>
+                <div class="flex justify-end space-x-4"><button type="button" id="cancelBtn" class="bg-transparent border border-[var(--border-color)] text-[var(--text-secondary)] font-semibold py-2 px-5 rounded-lg hover:bg-[var(--border-color)]">Cancel</button><button type="submit" id="saveTaskBtn" class="bg-[var(--accent-color)] text-white font-semibold py-2 px-5 rounded-lg">Save Task</button></div>
+            </form>
+        </div>
+    </div>
+    <div id="deleteConfirmModal" class="modal-container fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 modal-hidden">
+        <div class="modal-content bg-[var(--bg-secondary)] rounded-xl shadow-2xl p-8 w-full max-w-sm text-center border border-[var(--border-color)]">
+            <h2 class="text-xl font-bold text-[var(--text-primary)] mb-4">Are you sure?</h2><p class="text-[var(--text-secondary)] mb-6">Do you really want to delete this task?</p>
+            <div class="flex justify-center space-x-4"><button id="cancelDeleteBtn" class="bg-transparent border border-[var(--border-color)] text-[var(--text-secondary)] font-semibold py-2 px-6 rounded-lg hover:bg-[var(--border-color)]">Cancel</button><button id="confirmDeleteBtn" class="bg-red-500 text-white font-semibold py-2 px-6 rounded-lg">Delete</button></div>
+        </div>
+    </div>
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 space-y-3"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const API_BASE_URL = 'http://127.0.0.1:3000';
+            const pages = { auth: document.getElementById('authContainer'), app: document.getElementById('appPage') };
+            const loginView = document.getElementById('loginView');
+            const registerView = document.getElementById('registerView');
+            const showRegisterLink = document.getElementById('showRegister');
+            const showLoginLink = document.getElementById('showLogin');
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const taskList = document.getElementById('taskList');
+            const addTaskBtn = document.getElementById('addTaskBtn');
+            const taskModal = document.getElementById('taskModal');
+            const taskForm = document.getElementById('taskForm');
+            const modalTitle = document.getElementById('modalTitle');
+            const taskIdInput = document.getElementById('taskId');
+            const taskTitleInput = document.getElementById('taskTitle');
+            const taskPriorityInput = document.getElementById('taskPriority');
+            const taskDeadlineInput = document.getElementById('taskDeadline');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+            const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+            const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+            const accountBtn = document.getElementById('accountBtn');
+            const accountDrawer = document.getElementById('accountDrawer');
+            const drawerBackdrop = document.getElementById('drawerBackdrop');
+            const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+            const userEmailDisplay = document.getElementById('userEmailDisplay');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const filterControls = document.getElementById('filterControls');
+            const sortBySelect = document.getElementById('sortBy');
+            const searchInput = document.getElementById('searchInput');
+            const themeLightBtn = document.getElementById('themeLightBtn');
+            const themeDarkBtn = document.getElementById('themeDarkBtn');
+
+            let currentStatusFilter = 'all';
+            let currentSortBy = 'custom';
+            let currentSearchTerm = '';
+            let taskToDeleteId = null;
+            let searchTimeout;
+            let tasksCache = [];
+            let sortableInstance = null;
+
+            const showPage = (pageName) => { Object.values(pages).forEach(p => p.classList.remove('active')); pages[pageName].classList.add('active'); };
+            const getToken = () => localStorage.getItem('token');
+            const setToken = (token) => localStorage.setItem('token', token);
+            const removeToken = () => localStorage.removeItem('token');
+            const decodeToken = (token) => { try { return JSON.parse(atob(token.split('.')[1])); } catch (e) { return null; } };
+            const apiFetch = async (endpoint, options = {}) => { const token = getToken(); const headers = { 'Content-Type': 'application/json', ...options.headers }; if (token) { headers['Authorization'] = `Bearer ${token}`; } const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers }); if (response.status === 401 || response.status === 403) { logout(); throw new Error('Authentication error'); } return response; };
+            const showToast = (message, type = 'success') => { const toast = document.createElement('div'); const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500'; toast.className = `toast ${bgColor} text-white font-bold py-3 px-5 rounded-lg shadow-xl`; toast.textContent = message; document.getElementById('toastContainer').appendChild(toast); setTimeout(() => toast.remove(), 3000); };
+            const openModal = (modal) => modal.classList.remove('modal-hidden');
+            const closeModal = (modal) => modal.classList.add('modal-hidden');
+            const openDrawer = () => { drawerBackdrop.classList.remove('pointer-events-none'); drawerBackdrop.style.opacity = '0.5'; accountDrawer.classList.add('open'); };
+            const closeDrawer = () => { drawerBackdrop.style.opacity = '0'; drawerBackdrop.classList.add('pointer-events-none'); accountDrawer.classList.remove('open'); };
+            const login = async (email, password) => { try { const response = await apiFetch('/login', { method: 'POST', body: JSON.stringify({ email, password }) }); if (!response.ok) { throw new Error((await response.json()).message); } const { token } = await response.json(); setToken(token); initializeApp(); } catch (error) { showToast(error.message || 'Login failed.', 'error'); } };
+            const register = async (email, password) => { try { const response = await apiFetch('/register', { method: 'POST', body: JSON.stringify({ email, password }) }); if (!response.ok) { throw new Error((await response.json()).message); } showToast('Registration successful! Please log in.', 'success'); loginView.classList.remove('hidden'); registerView.classList.add('hidden'); } catch (error) { showToast(error.message || 'Registration failed.', 'error'); } };
+            const logout = () => { removeToken(); showPage('auth'); };
+            const fetchTasks = async () => { try { const query = new URLSearchParams({ status: currentStatusFilter, sortBy: currentSortBy, search: currentSearchTerm }); const response = await apiFetch(`/tasks?${query}`); tasksCache = await response.json(); renderTasks(tasksCache); } catch (error) { console.error('Failed to fetch tasks:', error); showToast('Could not load your tasks.', 'error'); } };
+            const saveTask = async (task) => { const isEditing = !!task.id; const endpoint = isEditing ? `/tasks/${task.id}` : '/tasks'; const method = isEditing ? 'PUT' : 'POST'; try { await apiFetch(endpoint, { method, body: JSON.stringify(task) }); await fetchTasks(); closeModal(taskModal); showToast(`Task ${isEditing ? 'updated' : 'added'}!`); } catch (error) { showToast('Could not save task.', 'error'); } };
+            const deleteTask = async (id) => { try { await apiFetch(`/tasks/${id}`, { method: 'DELETE' }); await fetchTasks(); showToast('Task deleted!'); } catch (error) { showToast('Could not delete task.', 'error'); } };
+            const toggleTaskCompletion = async (taskId) => { const task = tasksCache.find(t => t.id === taskId); if (!task) return; try { await apiFetch(`/tasks/${taskId}`, { method: 'PUT', body: JSON.stringify({ completed: !task.completed }) }); task.completed = !task.completed; renderTasks(tasksCache); } catch (error) { showToast('Could not update task status.', 'error'); } };
+            const addSubtask = async (taskId, title, form) => { try { const response = await apiFetch(`/tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ title }) }); if (!response.ok) throw new Error('Failed to add subtask'); const newSubtask = await response.json(); const task = tasksCache.find(t => t.id === taskId); if (task) { task.subtasks.push(newSubtask); } renderTasks(tasksCache); form.reset(); form.querySelector('input').focus(); } catch (error) { showToast('Could not add subtask.', 'error'); } };
+            const toggleSubtaskCompletion = async (subtaskId, completed) => { try { await apiFetch(`/subtasks/${subtaskId}`, { method: 'PUT', body: JSON.stringify({ completed }) }); const subtask = tasksCache.flatMap(t => t.subtasks).find(st => st.id === subtaskId); if (subtask) { subtask.completed = completed; } renderTasks(tasksCache); } catch (error) { showToast('Could not update subtask.', 'error'); } };
+            const deleteSubtask = async (subtaskId) => { try { await apiFetch(`/subtasks/${subtaskId}`, { method: 'DELETE' }); tasksCache.forEach(t => { t.subtasks = t.subtasks.filter(st => st.id !== subtaskId); }); renderTasks(tasksCache); } catch (error) { showToast('Could not delete subtask.', 'error'); } };
+            
+            const renderTasks = (tasks) => {
+                const openSubtaskSections = {};
+                document.querySelectorAll('.subtask-section.open').forEach(el => { openSubtaskSections[el.closest('.task-item').dataset.taskId] = true; });
+                taskList.innerHTML = '';
+                if (tasks.length === 0) { const message = currentSearchTerm ? `No tasks found for "${currentSearchTerm}".` : 'No tasks match your filters.'; taskList.innerHTML = `<div class="text-center text-[var(--text-secondary)] py-10"><p>${message}</p></div>`; return; }
+                tasks.forEach(task => {
+                    const taskElement = document.createElement('div');
+                    taskElement.className = `task-item p-4 rounded-lg shadow-sm priority-${task.priority} border border-[var(--border-color)]`;
+                    taskElement.dataset.taskId = task.id;
+                    const deadlineDate = task.deadline ? new Date(task.deadline) : null;
+                    const formattedDeadline = deadlineDate ? `${deadlineDate.toLocaleDateString()} at ${deadlineDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : '';
+                    const subtasksHtml = task.subtasks.map(st => `<div class="subtask-item flex items-center justify-between py-1 px-2 rounded hover:bg-black/5" data-subtask-id="${st.id}"><div class="flex items-center space-x-2"><input type="checkbox" ${st.completed ? 'checked' : ''} class="subtask-checkbox h-4 w-4 rounded border-gray-400 text-[var(--accent-color)] focus:ring-[var(--accent-color)] cursor-pointer"><label class="text-sm text-[var(--text-secondary)] ${st.completed ? 'line-through' : ''}">${st.title}</label></div><button class="delete-subtask-btn p-1 rounded-full"><svg class="w-4 h-4 text-red-500 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg></button></div>`).join('');
+                    taskElement.innerHTML = `<div class="flex flex-col w-full"><div class="flex items-center justify-between"><div class="flex items-center space-x-4 flex-grow min-w-0"><input type="checkbox" ${task.completed ? 'checked' : ''} class="task-checkbox h-5 w-5 rounded border-gray-400 text-[var(--accent-color)] focus:ring-[var(--accent-color)] cursor-pointer flex-shrink-0"><div class="min-w-0"><p class="font-medium text-[var(--text-primary)] truncate ${task.completed ? 'line-through text-[var(--text-secondary)]' : ''}">${task.title}</p>${task.deadline ? `<p class="text-sm text-[var(--text-secondary)]">${formattedDeadline}</p>` : ''}</div></div><div class="flex items-center space-x-1 flex-shrink-0 ml-4"><button class="expand-subtasks-btn p-2 rounded-full hover:bg-black/10"><svg class="w-5 h-5 text-[var(--text-secondary)] transition-transform ${openSubtaskSections[task.id] ? 'rotate-180' : ''}" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></button><button class="edit-btn p-2 rounded-full hover:bg-black/10"><svg class="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg></button><button class="delete-btn p-2 rounded-full hover:bg-black/10"><svg class="w-5 h-5 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button></div></div><div class="subtask-section pl-9 ${openSubtaskSections[task.id] ? 'open' : ''}"><div class="subtask-list space-y-1 mt-2">${subtasksHtml}</div><div class="subtask-controls mt-2"><form class="add-subtask-form hidden flex items-center space-x-2"><input type="text" placeholder="New subtask..." class="w-full text-sm px-2 py-1 border border-[var(--border-color)] rounded-md bg-transparent"><button type="submit" class="p-1.5 bg-[var(--accent-color)] text-white rounded-md hover:opacity-90"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"></path></svg></button></form><button class="show-add-subtask-btn text-sm text-[var(--accent-color)] font-medium hover:underline">+ Add item</button></div></div></div>`;
+                    taskList.appendChild(taskElement);
+                });
+            };
+            
+            const openTaskModal = (task = null) => { if (task) { modalTitle.textContent = 'Edit Task'; taskIdInput.value = task.id; taskTitleInput.value = task.title; taskPriorityInput.value = task.priority; taskDeadlineInput.value = task.deadline ? task.deadline.slice(0, 16) : ''; } else { modalTitle.textContent = 'Add New Task'; taskIdInput.value = ''; taskPriorityInput.value = 'Medium'; } openModal(taskModal); };
+            
+            const initSortable = () => { if (sortableInstance) { sortableInstance.destroy(); } sortableInstance = new Sortable(taskList, { animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', onEnd: async (evt) => { const orderedIds = Array.from(taskList.children).map(item => item.dataset.taskId); await apiFetch('/tasks/reorder', { method: 'POST', body: JSON.stringify({ orderedIds }) }); } }); };
+            const destroySortable = () => { if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null; } };
+
+            const applyTheme = (theme) => { if (theme === 'dark') { document.documentElement.classList.add('dark'); themeDarkBtn.classList.add('border-[var(--accent-color)]'); themeLightBtn.classList.remove('border-[var(--accent-color)]'); themeLightBtn.classList.add('border-transparent'); } else { document.documentElement.classList.remove('dark'); themeLightBtn.classList.add('border-[var(--accent-color)]'); themeDarkBtn.classList.remove('border-[var(--accent-color)]'); themeDarkBtn.classList.add('border-transparent'); } localStorage.setItem('theme', theme); };
+            themeLightBtn.addEventListener('click', () => applyTheme('light'));
+            themeDarkBtn.addEventListener('click', () => applyTheme('dark'));
+
+            taskList.addEventListener('click', (e) => { const taskElement = e.target.closest('.task-item'); if (!taskElement) return; const taskId = taskElement.dataset.taskId; if (e.target.closest('.edit-btn')) { openTaskModal(tasksCache.find(t => t.id === taskId)); } if (e.target.closest('.delete-btn')) { taskToDeleteId = taskId; openModal(deleteConfirmModal); } if (e.target.closest('.expand-subtasks-btn')) { taskElement.querySelector('.subtask-section').classList.toggle('open'); e.target.closest('.expand-subtasks-btn').querySelector('svg').classList.toggle('rotate-180'); } if (e.target.matches('.task-checkbox')) { toggleTaskCompletion(taskId); } if (e.target.matches('.show-add-subtask-btn')) { e.target.classList.add('hidden'); taskElement.querySelector('.add-subtask-form').classList.remove('hidden'); taskElement.querySelector('.add-subtask-form input').focus(); } const deleteSubtaskBtn = e.target.closest('.delete-subtask-btn'); if (deleteSubtaskBtn) { deleteSubtask(deleteSubtaskBtn.closest('.subtask-item').dataset.subtaskId); } });
+            taskList.addEventListener('change', (e) => { if (e.target.matches('.subtask-checkbox')) { const subtaskId = e.target.closest('.subtask-item').dataset.subtaskId; toggleSubtaskCompletion(subtaskId, e.target.checked); } });
+            taskList.addEventListener('submit', (e) => { if (e.target.matches('.add-subtask-form')) { e.preventDefault(); const taskId = e.target.closest('.task-item').dataset.taskId; const input = e.target.querySelector('input'); if (input.value.trim()) { addSubtask(taskId, input.value.trim(), e.target); } } });
+            
+            showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginView.classList.add('hidden'); registerView.classList.remove('hidden'); });
+            showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerView.classList.add('hidden'); loginView.classList.remove('hidden'); });
+            logoutBtn.addEventListener('click', logout);
+            accountBtn.addEventListener('click', openDrawer);
+            closeDrawerBtn.addEventListener('click', closeDrawer);
+            drawerBackdrop.addEventListener('click', closeDrawer);
+            loginForm.addEventListener('submit', (e) => { e.preventDefault(); login(e.target.loginEmail.value, e.target.loginPassword.value); });
+            registerForm.addEventListener('submit', (e) => { e.preventDefault(); register(e.target.registerEmail.value, e.target.registerPassword.value); });
+            addTaskBtn.addEventListener('click', () => openTaskModal());
+            cancelBtn.addEventListener('click', () => closeModal(taskModal));
+            cancelDeleteBtn.addEventListener('click', () => closeModal(deleteConfirmModal));
+            confirmDeleteBtn.addEventListener('click', () => { if(taskToDeleteId) deleteTask(taskToDeleteId); closeModal(deleteConfirmModal); });
+            taskForm.addEventListener('submit', (e) => { e.preventDefault(); saveTask({ id: taskIdInput.value, title: taskTitleInput.value.trim(), priority: taskPriorityInput.value, deadline: taskDeadlineInput.value || null }); });
+            filterControls.addEventListener('click', (e) => { if (e.target.tagName === 'BUTTON') { currentStatusFilter = e.target.dataset.status; filterControls.querySelectorAll('button').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); fetchTasks(); } });
+            sortBySelect.addEventListener('change', (e) => { currentSortBy = e.target.value; if(currentSortBy === 'custom') { initSortable(); } else { destroySortable(); } fetchTasks(); });
+            searchInput.addEventListener('input', (e) => { currentSearchTerm = e.target.value; clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { fetchTasks(); }, 300); });
+
+            const initializeApp = () => {
+                const preferredTheme = localStorage.getItem('theme') || 'light';
+                applyTheme(preferredTheme);
+                const token = getToken();
+                if (token) { const userData = decodeToken(token); if (userData) { userEmailDisplay.textContent = userData.email; showPage('app'); fetchTasks(); if(currentSortBy === 'custom') { initSortable(); } } else { logout(); } } 
+                else { showPage('auth'); }
+            };
+
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
